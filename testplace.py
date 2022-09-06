@@ -1,176 +1,115 @@
-from ast import arguments
-from cmath import nan
 import numpy as np
-import csv 
-import math
-from tqdm import tqdm
+import csv
 
-#check that member is in equalibrium
+# check that member is in equalibrium
+
+
 def check(*args):
     checklist = list()
     for i in args:
         checklist.append(i)
 
-    total = round(sum(checklist),5)
+    total = round(sum(checklist), 10)
 
     if total != 0:
         print(f'This member is unstable! Resultant = {total}')
-    else: 
+    else:
         print(f'This member is stable! Resultant = {total}')
-    
-##############################################################################
-# constants
-gidMass = 0.350 #grams
-fullBin = 252 # number of GID is a full bin
-theta = 2.48*np.pi/180 # position of primary link whgen full
-FOS = 2 #factor of safety
+
+
+# P
+# physical constants
+# material = 1  # mass(kg) per length
+#g = 9.81
 g = 9.81
-rho = 8000 # density if stainless steel AISI 316 Stainless Steel (kg/m3)
-P = gidMass*fullBin*g*FOS # permitted 
-pumpCapacity = 12*1000
+g1 = 9.81
+rho = 8000  # density if stainless steel AISI 316 Stainless Steel (kg/m3)
 
-#l1=0.58362
-#L1_intial = 0.58362 # connecting link length
-iter_l1 = 100
-L1_list = np.linspace(0.1,0.5,num=iter_l1)
+# geometric propteries
+# AB
+l_AB = 1.28
+vol_AB = 0.0022825499
+# rails (x2), shafts (x3)
+# additionPlatformMass = ((0.000288073749*2) + (0.00008123*3))*rho
+additionPlatformMass = (0)*rho
+
+m_AB = vol_AB*rho + additionPlatformMass
+w_AB = m_AB*g
 
 
-#l2 = 0.12554 # fixing pointfrom D
-iter_l2 = 100
-L2_list = np.linspace(0.05,0.5,num=iter_l2)
+# CD
+l_CD = 1.000
+vol_CD = 0.000394883597
+m_CD = vol_CD*rho*2
+w_CD = m_CD*g
 
-#l3 = 0.095352 # veritical displacement
-iter_l3 = 100
-L3_list = np.linspace(0.1,0.17,num=iter_l3)
+# EB
+l_EB = 1.000
+#m_EB = material*l_EB
+vol_EB = 0.000394883597
+m_EB = vol_EB*rho*2
+w_EB = m_EB*g
 
-count = 0
-state = True
-validity = True
-requiredForce = 0
-alpha = 0
-l1_array = list()
-l2_array = list()
-l3_array = list()
-count_array = list()
-forces = list()
-alpha_ang = list()
-data = list()
-target = list()
-targetForce = 0
-print('Running analysis..!\n')
-for l1 in tqdm (L1_list, desc="Loading..."):
-    for l3 in L3_list:
-        for l2 in L2_list:
-            ##############################################################################
-            ''' 
-            Geometric propteries:
-            link length based on material volume and density
-            '''
-            # AB
-            l_AB = 1.28
-            vol_AB = 0.0022825499
-            additionPlatformMass = ((0.000288073749*2) + (0.00008123*3))*rho # rails (x2), shafts (x3)
 
-            m_AB = vol_AB*rho + additionPlatformMass
-            w_AB = m_AB*g
+##############################################################################
+# inputs
+positions = 2
 
-            # CD
-            l_CD = 1.000
-            vol_CD = 0.000394883597
-            m_CD = vol_CD*rho*2
-            w_CD = m_CD*g
+#startAngle = 2.48*np.pi/180
+startAngle = 13.907*np.pi/180
+endAngle = 46.58*np.pi/180
+thetaList = np.linspace(endAngle, startAngle, num=positions)
 
-            # EB
-            l_EB = 1.000
-            #m_EB = material*l_EB
-            vol_EB = 0.000394883597
-            m_EB = vol_EB*rho*2
-            w_EB = m_EB*g
+gidMass = 0.350  # grams
+fullBin = 252
+FOS = 1
+PList = np.linspace(gidMass*g1, gidMass*fullBin*g1*FOS, num=positions)
 
-            ##############################################################################
-            # secondary variables
-            l4 = (l_CD/2)-l2
-            argument = (l3 + l2*np.sin(theta))/l1
-            alpha = argument
-            
-            #print(alpha)
-            ##############################################################################
-            # calculation
-            #Link B
-            Rbx = 0
-            Rby = (0.5*l_AB*(P+w_AB)-(l_CD*np.cos(theta)*(P+w_AB)))/(l_CD*np.cos(theta))
-            Rcx = 0
-            Rcy = w_AB + P - Rby
+L1 = 0.300101  # connecting link length
+# L1 = 0.400101  # connecting link length
+# L2 = 0.148592  # fixing point from D
+L2 = 0.15  # fixing point from D
+L3 = 0.15  # veritical displacement
 
-            # Link EB
-            Rfx = 0
-            Rfy = -2*Rby - w_EB
-            Rex = 0
-            Rey = Rfy + w_EB + Rby 
 
-            #Link CD
-            F_hp = (0.5*l_CD*(2*Rcy - Rfy + w_CD))/(-0.5*l_CD*np.sin(alpha) + (l4-0.5*l_CD)*np.tan(theta)*np.cos(alpha) + l4*np.sin(alpha))
-            Rdx = - F_hp *np.cos(alpha)
-            Rdy = Rcy - Rfy + w_CD - F_hp*np.sin(alpha)
+print("Results! \n")
+for theta, P in zip(thetaList, PList):
+    # secondary variables
+    L4 = (l_CD/2)-L2
+    alpha = np.arcsin((L3 + L2*np.sin(theta))/L1)
 
-            #results (outputs)
-            requiredForce = round(F_hp*np.cos(alpha),2)
-            angularPosition = round(theta*180/np.pi,2)
-            #massOfGIDs = round((P*FOS)/g,2)
-            #numberGID = round((massOfGIDs)/gidMass,0)
-            #targetForce = round(F_hp*np.sin(alpha),2)
-            #forces.append(abs(requiredForce))
-            #target.append(targetForce)
-            #alpha_ang.append(alpha*180/np.pi)
+    # calculation
+    # Link B
+    Rbx = 0
+    Rby = (0.5*l_AB*(P+w_AB)-(l_CD*np.cos(theta)*(P+w_AB)))/(l_CD*np.cos(theta))
+    Rcx = 0
+    Rcy = w_AB + P - Rby
+    check(Rby, -P, -w_AB, Rcy, Rbx, Rcx)
 
-            # if abs(requiredForce) > abs(pumpCapacity/FOS):
-            if round(abs(requiredForce)) == 9868:
-                #print(requiredForce)
-                #print(count)
-                pass
-            else:
-                newList = []
-                #print(f'{count} - L1: {round(l1,4)}, L2: {round(l2,4)}, L3: {round(l3,4)}, {requiredForce}')
+    # Link EB
+    Rfx = 0
+    Rfy = -Rby - w_EB
+    Rex = 0
+    Rey = Rfy + w_EB + Rby
+    check(-Rbx, -Rfx, Rex, -w_EB, Rey, -Rfy, -Rby)
 
-                l1_array.append(round(l1,4))
-                l2_array.append(round(l2,4))
-                l3_array.append(round(l3,4))
-                forces.append(abs(requiredForce))
-                count_array.append(count)
-                alpha_ang.append(alpha*180/np.pi)
-                target.append(targetForce)
-                #newList = [round(l1,4),round(l2,4),round(l3,4)]
-                #print(newList)
-                #var = round(abs(requiredForce))
-                #print(var)
-                #data[var] = newList              
-                #print(data)
-                count+=1
+    # Link CD
+    F_hp = (0.5*l_CD*(2*Rcy - Rfy + w_CD))/(-0.5*l_CD*np.sin(alpha) +
+                                            (L4-0.5*l_CD)*np.tan(theta)*np.cos(alpha) + L4*np.sin(alpha))
+    Rdx = - F_hp * np.cos(alpha)
+    Rdy = Rcy - Rfy + w_CD - F_hp*np.sin(alpha)
+    check(Rdx, F_hp*np.cos(alpha), Rfx, -Rcy+Rfy-w_CD, Rdy+F_hp*np.sin(alpha))
 
-                #state = False
-        # if state == False:
-        #     break          
+    #results (outputs)
+    requiredForce = round(F_hp*np.cos(alpha), 2)
+    angularPosition = round(theta*180/np.pi, 2)
+    massOfGIDs = round(P/g1, 2)
+    numberGID = round(massOfGIDs/gidMass, 0)
 
-    # if state == False:
-    #     break      
-        #print(f'{count} - Required pump force: {requiredForce} at angle {angularPosition} with {numberGID} ({massOfGIDs} kg) GIDs')
-
-#print(requiredForce)
-print('##############################################\n')
-print('Final Result\n')
-# print(f'{max(count_array)} different possibilities found!\n')
-# print(f'Range L1: ({min(l1_array)} to {max(l1_array)})')
-# print(f'Range L2: ({min(l2_array)} to {max(l2_array)})')
-# print(f'Range L3: ({min(l3_array)} to {max(l3_array)})')
-print('\n')
-print('##############################################\n')
-
-var = forces.index(max(forces))
-# print('Best values!')
-print(forces[var])
-print(f'L1 - {l1_array[var]}')
-print(f'L2 - {l2_array[var]}')
-print(f'L3 - {l3_array[var]}')
-print(f'Alpha - {alpha_ang[var]}')
-print(f'Vertical force - {target[var]}')
-# print('##############################################\n')
+    print(
+        f'Required pump force: {requiredForce} at angle {angularPosition} degrees with mass {massOfGIDs} kg')
+    requiredForce2 = round(F_hp*np.sin(alpha), 2)
+    # print(requiredForce2)
+    # print(alpha*180/np.pi)
+    if abs(requiredForce) <= 6000:
+        print('This is the ideal position!!!!!!!!!!!!!!!!!!')
